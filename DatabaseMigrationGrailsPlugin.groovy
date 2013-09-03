@@ -38,10 +38,12 @@ import liquibase.servicelocator.ServiceLocator
 import liquibase.snapshot.DatabaseSnapshotGeneratorFactory
 import liquibase.sqlgenerator.SqlGeneratorFactory
 import liquibase.sqlgenerator.core.CreateTableGenerator
+import org.codehaus.groovy.grails.plugins.GrailsPluginInfo
+import org.codehaus.groovy.grails.plugins.GrailsPluginUtils
 
 class DatabaseMigrationGrailsPlugin {
 
-	String version = '1.3.6'
+	String version = '1.3.6.tim'
 	String grailsVersion = '2.0 > *'
 	String author = 'Burt Beckwith'
 	String authorEmail = 'bbeckwith@gopivotal.com'
@@ -61,6 +63,8 @@ class DatabaseMigrationGrailsPlugin {
 	def issueManagement = [system: 'JIRA', url: 'http://jira.grails.org/browse/GPDATABASEMIGRATION']
 	def scm = [url: 'https://github.com/grails-plugins/grails-database-migration']
 
+    String baseDir = "grails-app/migrations"
+
 	def doWithSpring = {
 
 		MigrationUtils.application = application
@@ -71,9 +75,18 @@ class DatabaseMigrationGrailsPlugin {
 			migrationResourceAccessor(CompositeResourceAccessor, [new GrailsClassLoaderResourceAccessor(), classLoaderResourceAccessor])
 		}
 		else {
-			String changelogLocation = MigrationUtils.changelogLocation
-			String changelogLocationPath = new File(changelogLocation).path
-			migrationResourceAccessor(CompositeResourceAccessor, [new FileSystemResourceAccessor(changelogLocationPath), classLoaderResourceAccessor])
+			String changelogLocationPath = new File(MigrationUtils.changelogLocation).path
+            def resourceAccessors = [new FileSystemResourceAccessor(changelogLocationPath), classLoaderResourceAccessor]
+
+            GrailsPluginUtils.getPluginInfos().each { GrailsPluginInfo pluginInfo ->
+                File pluginChangelogLocation = new File(pluginInfo.pluginDir.file, baseDir)
+                if (!pluginChangelogLocation.exists())
+                    return
+
+                resourceAccessors << new FileSystemResourceAccessor(pluginChangelogLocation.canonicalPath)
+            }
+
+			migrationResourceAccessor(CompositeResourceAccessor, resourceAccessors)
 		}
 
 		diffStatusListener(GrailsDiffStatusListener)
